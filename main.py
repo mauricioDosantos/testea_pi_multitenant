@@ -1,9 +1,9 @@
 import psycopg2
-from typing import Union
+from typing import Union, Annotated
 from dotenv import load_dotenv
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 
 env = load_dotenv()
 
@@ -15,13 +15,8 @@ password = os.getenv('password')
 port = os.getenv('port')
 
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-@app.get("/query/base/{base}")
-def read_item(base: str, q: Union[str, None] = None):
+def create_conn(base):
+    print(f'Connection: {base}, {host}, {user}, {password}, {port}')
     conn = psycopg2.connect(
         database=base,
         host=host,
@@ -29,8 +24,34 @@ def read_item(base: str, q: Union[str, None] = None):
         password=password,
         port=port
     )
+    return conn
+
+
+def check_code(code):
+    conn = create_conn(database)
+    query = (
+        "select base from token_for_the_base where code = '{}';".format(code)
+    )
     with conn.cursor() as cursor:
-        print(base, host, user, password, port)
+        cursor.execute(query)
+        for row in cursor.fetchone():
+            print(f'Code corresponds to base: {row}')
+            return row
+
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+
+@app.get("/query")
+def read_item(
+    q: Union[str, None] = None,
+    code: Annotated[str | None, Header()] = None
+):
+    base = check_code(code)
+    conn = create_conn(base)
+    with conn.cursor() as cursor:
         cursor.execute(q)
 
         result = []
